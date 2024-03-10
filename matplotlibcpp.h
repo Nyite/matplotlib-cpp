@@ -15,6 +15,7 @@
 #endif
 
 #include <vector>
+#include <any>
 #include <map>
 #include <array>
 #include <numeric>
@@ -451,7 +452,7 @@ PyObject* get_listlist(const std::vector<std::vector<Numeric>>& ll)
 ///
 /// See: https://matplotlib.org/3.2.1/api/_as_gen/matplotlib.pyplot.plot.html
 template<typename Numeric>
-bool plot(const std::vector<Numeric> &x, const std::vector<Numeric> &y, const std::map<std::string, std::string>& keywords)
+bool plot(const std::vector<Numeric> &x, const std::vector<Numeric> &y, const std::map<std::string, std::any>& keywords)
 {
     assert(x.size() == y.size());
 
@@ -467,10 +468,24 @@ bool plot(const std::vector<Numeric> &x, const std::vector<Numeric> &y, const st
     PyTuple_SetItem(args, 1, yarray);
 
     // construct keyword args
-    PyObject* kwargs = PyDict_New();
-    for(std::map<std::string, std::string>::const_iterator it = keywords.begin(); it != keywords.end(); ++it)
-    {
-        PyDict_SetItemString(kwargs, it->first.c_str(), PyString_FromString(it->second.c_str()));
+    PyObject *kwargs = PyDict_New();
+    for (const auto &[key, value] : keywords) {
+        if (auto py_value = std::any_cast<int>(&value)) {
+            PyDict_SetItemString(kwargs, key.c_str(), PyInt_FromLong(*py_value));
+        } else if (auto py_value = std::any_cast<long>(&value)) {
+            PyDict_SetItemString(kwargs, key.c_str(), PyLong_FromLong(*py_value));
+        } else if (auto py_value = std::any_cast<unsigned long>(&value)) {
+            PyDict_SetItemString(kwargs, key.c_str(), PyLong_FromUnsignedLong(*py_value));
+        } else if (auto py_value = std::any_cast<size_t>(&value)) {
+            PyDict_SetItemString(kwargs, key.c_str(), PyLong_FromSize_t(*py_value));
+        } else if (auto py_value = std::any_cast<double>(&value)) {
+            PyDict_SetItemString(kwargs, key.c_str(), PyLong_FromDouble(*py_value));
+        } else if (auto py_value = std::any_cast<std::string>(&value)) {
+            PyDict_SetItemString(kwargs, key.c_str(), PyString_FromString(py_value->c_str()));
+        } else if (auto py_value = std::any_cast<const char *>(&value)) {
+            PyDict_SetItemString(kwargs, key.c_str(), PyString_FromString(*py_value));
+        } else
+            throw std::invalid_argument("Unkown plot arg type");
     }
 
     PyObject* res = PyObject_Call(detail::_interpreter::get().s_python_function_plot, args, kwargs);
@@ -2889,7 +2904,7 @@ inline bool plot(const std::vector<double>& y, const std::string& format = "") {
     return plot<double>(y,format);
 }
 
-inline bool plot(const std::vector<double>& x, const std::vector<double>& y, const std::map<std::string, std::string>& keywords) {
+inline bool plot(const std::vector<double>& x, const std::vector<double>& y, const std::map<std::string, std::any>& keywords) {
     return plot<double>(x,y,keywords);
 }
 
